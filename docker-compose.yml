@@ -1,0 +1,139 @@
+version: '3'
+
+services:
+
+  mariadb:
+    build:
+      context: ./mariadb/
+      args:
+        - mysql_database=icinga
+        - mysql_root_pass=password
+        - mysql_icinga_user=icinga
+        - mysql_icinga_pass=icingapass
+        - mysql_webdatabase=icingaweb2
+        - mysql_icingaweb_user=icingaweb
+        - mysql_icingaweb_pass=icingawebpass
+        - icingaweb_admin_user=admin
+        - icingaweb_admin_pass=password
+        - mysql_dirdatabase=director
+        - mysql_diruser=idirector
+        - mysql_dirpassword=idirectorpass
+    networks:
+      - icinga
+    volumes:
+      - database:/var/lib/mysql
+    restart: always
+
+  icinga:
+    build:
+      context: ./icinga2/
+      args:
+        - icinga_host=icinga
+        - mysql_host=mariadb
+        - mysql_database=icinga
+        - mysql_icinga_user=icinga
+        - mysql_icinga_pass=icingapass
+        - api_user=api
+        - api_pass=apipass
+        - dir_user=dir
+        - dir_password=dirpass
+        - graphite_host=graphite
+    networks:
+      - icinga
+    hostname: icinga
+    volumes:
+     - icingaconfig:/etc/icinga2
+     - icingacert:/var/lib/icinga2/ca
+    depends_on:
+     - mariadb
+    restart: always
+    ports:
+     - 5665:5665
+
+  php-fpm:
+    build:
+      context: ./php-fpm/
+      args:
+        - mysql_host=mariadb
+        - mysql_database=icinga
+        - mysql_icinga_user=icinga
+        - mysql_icinga_pass=icingapass
+        - mysql_webdatabase=icingaweb2
+        - mysql_icingaweb_user=icingaweb
+        - mysql_icingaweb_pass=icingawebpass
+        - icingaweb_admin_user=admin
+        - icinga_host=icinga
+        - api_user=api
+        - api_pass=apipass
+        - mysql_dirdatabase=director
+        - mysql_diruser=idirector
+        - mysql_dirpassword=idirectorpass
+        - dir_user=dir
+        - dir_password=dirpass
+        - graphite_webhost=nginx
+    volumes:
+      - icingahtml:/usr/share/icingaweb2
+      - icingawebconf:/etc/icingaweb2
+      - nginxconf:/etc/nginx/sites-enabled
+      - nginxcerts:/etc/nginx/certs/
+    networks:
+      - icinga
+    depends_on:
+      - icinga
+    restart: always
+
+  graphite:
+    build:
+      context: ./graphite/
+      args:
+        - secret_key=akey
+    networks:
+      - icinga
+    restart: always
+    volumes:
+      - graphitehtml:/opt/graphite/webapp/
+
+  nginx:
+    build:
+      context: ./nginx/
+    volumes:
+      - icingahtml:/usr/share/icingaweb2:ro
+      - nginxconf:/etc/nginx/sites-enabled:ro
+      - graphitehtml:/usr/share/graphite/webapp:ro
+      - nginxcerts:/etc/nginx/certs/
+    networks:
+      - icinga
+    hostname: nginx
+    depends_on:
+     - mariadb
+     - icinga
+     - php-fpm
+     - graphite
+    restart: always
+    ports:
+     - 80:80
+     - 443:443
+
+#  adminer:
+#    image: adminer
+#    depends_on:
+#      - mariadb
+#    restart: always
+#    networks:
+#      - icinga
+#    ports:
+#     - 8080:8080
+
+networks:
+  icinga:
+   
+volumes:
+  icingaconfig:
+  icingacert:
+  icingahtml:
+  icingawebconf:
+  nginxconf:
+  graphitehtml:
+  nginxcerts:
+  database:
+  
